@@ -3,12 +3,12 @@ module Main exposing (main)
 import Browser
 import Browser.Events exposing (onAnimationFrameDelta)
 import Color exposing (Color)
-import Html exposing (button, div, h1, p, text)
-import Html.Attributes exposing (style, type_)
-import Html.Events exposing (onClick)
+import Html exposing (button, div, h1, input, label, p, text)
+import Html.Attributes as HA exposing (for, id, style, type_, value)
+import Html.Events exposing (onClick, onInput)
 import Random
 import Random.Extra
-import Svg exposing (Svg, g, svg)
+import Svg exposing (Svg, animate, g, svg)
 import Svg.Attributes as SA exposing (viewBox)
 import Svg.Lazy exposing (lazy)
 
@@ -23,7 +23,7 @@ main =
 
 
 type alias Model =
-    Maybe { painters : List Painter, elements : List (List (Svg Msg)), running : Bool }
+    Maybe { painters : List Painter, elements : List (List (Svg Msg)), running : Bool, mutationProbability : Float }
 
 
 type alias Painter =
@@ -34,6 +34,7 @@ type Msg
     = SeedPainters (List Painter)
     | AnimationTick Float
     | ToggleRunning
+    | MutProb Float
 
 
 type AGF
@@ -84,15 +85,28 @@ subscriptions model =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case msg of
-        SeedPainters painters ->
-            ( Just { painters = painters, elements = [], running = True }, Cmd.none )
+    case model of
+        Nothing ->
+            case msg of
+                SeedPainters painters ->
+                    ( Just { painters = painters, elements = [], running = True, mutationProbability = 0.1 }, Cmd.none )
 
-        AnimationTick delta ->
-            ( movePainters delta model, Cmd.none )
+                _ ->
+                    ( model, Cmd.none )
 
-        ToggleRunning ->
-            ( Maybe.map (\m -> { m | running = not m.running }) model, Cmd.none )
+        Just m ->
+            case msg of
+                AnimationTick delta ->
+                    ( movePainters delta model, Cmd.none )
+
+                ToggleRunning ->
+                    ( Just { m | running = not m.running }, Cmd.none )
+
+                MutProb p ->
+                    ( Just { m | mutationProbability = p }, Cmd.none )
+
+                _ ->
+                    ( Nothing, Cmd.none )
 
 
 movePainters : Float -> Model -> Model
@@ -213,14 +227,29 @@ view model =
 
             Just m ->
                 div []
-                    [ button [ onClick ToggleRunning ]
-                        [ text
-                            (if m.running then
-                                "Pause"
+                    [ div []
+                        [ button [ onClick ToggleRunning ]
+                            [ text
+                                (if m.running then
+                                    "Pause"
 
-                             else
-                                "Unpause"
-                            )
+                                 else
+                                    "Unpause"
+                                )
+                            ]
+                        , div []
+                            [ label [ for "mut-prob-input" ] [ text "Mutation probability [%]" ]
+                            , input
+                                [ id "mut-prob-input"
+                                , type_ "number"
+                                , HA.min "0.1"
+                                , HA.max "1"
+                                , HA.step "0.1"
+                                , value (String.fromFloat m.mutationProbability)
+                                , onInput (\s -> MutProb (String.toFloat s |> Maybe.withDefault m.mutationProbability))
+                                ]
+                                []
+                            ]
                         ]
                     , svg
                         [ viewBox "0 0 800 600" ]
