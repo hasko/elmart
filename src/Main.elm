@@ -3,8 +3,9 @@ module Main exposing (main)
 import Browser
 import Browser.Events exposing (onAnimationFrameDelta)
 import Color exposing (Color)
-import Html exposing (div, h1, p, text)
-import Html.Attributes exposing (style)
+import Html exposing (button, div, h1, p, text)
+import Html.Attributes exposing (style, type_)
+import Html.Events exposing (onClick)
 import Random
 import Random.Extra
 import Svg exposing (Svg, svg)
@@ -21,7 +22,7 @@ main =
 
 
 type alias Model =
-    Maybe { painters : List Painter, elements : List (Svg Msg) }
+    Maybe { painters : List Painter, elements : List (Svg Msg), running : Bool }
 
 
 type alias Painter =
@@ -31,6 +32,7 @@ type alias Painter =
 type Msg
     = SeedPainters (List Painter)
     | AnimationTick Float
+    | ToggleRunning
 
 
 type AGF
@@ -67,8 +69,12 @@ subscriptions model =
         Nothing ->
             Sub.none
 
-        Just _ ->
-            onAnimationFrameDelta AnimationTick
+        Just m ->
+            if m.running then
+                onAnimationFrameDelta AnimationTick
+
+            else
+                Sub.none
 
 
 
@@ -79,10 +85,13 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         SeedPainters painters ->
-            ( Just { painters = painters, elements = [] }, Cmd.none )
+            ( Just { painters = painters, elements = [], running = True }, Cmd.none )
 
         AnimationTick delta ->
             ( movePainters delta model, Cmd.none )
+
+        ToggleRunning ->
+            ( Maybe.map (\m -> { m | running = not m.running }) model, Cmd.none )
 
 
 movePainters : Float -> Model -> Model
@@ -198,8 +207,19 @@ view model =
                 p [] [ text "Seeding" ]
 
             Just m ->
-                svg [ viewBox "0 0 800 600" ]
-                    (List.map painterToSvg m.painters)
+                div []
+                    [ button [ onClick ToggleRunning ]
+                        [ text
+                            (if m.running then
+                                "Pause"
+
+                             else
+                                "Unpause"
+                            )
+                        ]
+                    , svg [ viewBox "0 0 800 600" ]
+                        (List.map painterToSvg m.painters)
+                    ]
         ]
 
 
