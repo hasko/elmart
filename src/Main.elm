@@ -8,8 +8,9 @@ import Html.Attributes exposing (style, type_)
 import Html.Events exposing (onClick)
 import Random
 import Random.Extra
-import Svg exposing (Svg, svg)
+import Svg exposing (Svg, g, svg)
 import Svg.Attributes as SA exposing (viewBox)
+import Svg.Lazy exposing (lazy)
 
 
 main =
@@ -22,7 +23,7 @@ main =
 
 
 type alias Model =
-    Maybe { painters : List Painter, elements : List (Svg Msg), running : Bool }
+    Maybe { painters : List Painter, elements : List (List (Svg Msg)), running : Bool }
 
 
 type alias Painter =
@@ -101,7 +102,11 @@ movePainters delta model =
             Nothing
 
         Just m ->
-            Just { m | painters = List.map (movePainter delta) m.painters }
+            Just
+                { m
+                    | painters = List.map (movePainter delta) m.painters
+                    , elements = List.take 100 (List.map painterToSvg m.painters :: m.elements)
+                }
 
 
 movePainter : Float -> Painter -> Painter
@@ -217,8 +222,9 @@ view model =
                                 "Unpause"
                             )
                         ]
-                    , svg [ viewBox "0 0 800 600" ]
-                        (List.map painterToSvg m.painters)
+                    , svg
+                        [ viewBox "0 0 800 600" ]
+                        (List.map (\slice -> lazy (\sl -> g [] sl) slice) m.elements)
                     ]
         ]
 
