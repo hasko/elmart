@@ -1,6 +1,6 @@
 module Main exposing (main)
 
-import Adf exposing (Adf(..), executeAdf)
+import Adf exposing (Adf(..), UnaryOperator(..), executeAdf)
 import Array exposing (Array)
 import Browser
 import Browser.Events exposing (onAnimationFrameDelta)
@@ -265,6 +265,18 @@ type alias Genome =
 
 initialGenome : Genome
 initialGenome =
+    { px = Unary Param (Number 0)
+    , py = Unary Param (Number 1)
+    , dir = Unary Param (Number 2)
+    , step = Unary Param (Number 3)
+    , hue = Unary Param (Number 4)
+    , sat = Unary Param (Number 5)
+    , light = Unary Param (Number 6)
+    }
+
+
+
+{--
     { px = Add (Param (Number 1)) (Multiply (Divide (Multiply (Param (Number 4)) (Param (Number 0))) (Number 1000.0)) (Cos (Param (Number 3))))
     , py = Add (Param (Number 2)) (Multiply (Divide (Multiply (Param (Number 4)) (Param (Number 0))) (Number 1000.0)) (Sin (Param (Number 3))))
     , dir = Param (Number 3)
@@ -273,3 +285,4 @@ initialGenome =
     , sat = Param (Number 6)
     , light = Param (Number 7)
     }
+    --}
