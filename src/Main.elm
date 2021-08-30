@@ -31,8 +31,8 @@ type alias Model =
 
 type alias Painter =
     { px : Float
-    , dir : Float
     , py : Float
+    , dir : Float
     , step : Float
     , color : Color
     , life : Float
@@ -86,7 +86,7 @@ update msg model =
                     ( Just
                         { painters = painters
                         , elements = []
-                        , running = True
+                        , running = False
                         , mutationProbability = 0.1
                         }
                     , Cmd.none
