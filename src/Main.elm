@@ -30,14 +30,7 @@ type alias Model =
 
 
 type alias Painter =
-    { px : Float
-    , py : Float
-    , dir : Float
-    , step : Float
-    , color : Color
-    , life : Float
-    , genome : Genome
-    }
+    { params : Array Float, genome : Genome }
 
 
 type Msg
@@ -227,10 +220,17 @@ view model =
 painterToSvg : Painter -> Svg Msg
 painterToSvg painter =
     Svg.circle
-        [ painter.px |> String.fromFloat |> SA.cx
-        , painter.py |> String.fromFloat |> SA.cy
-        , SA.r "5"
-        , SA.fill (Color.toCssString painter.color)
+        [ Array.get 0 painter |> Maybe.withDefault 400 |> String.fromFloat |> SA.cx
+        , Array.get 1 painter |> Maybe.withDefault 300 |> String.fromFloat |> SA.cy
+        , Array.get 2 painter |> Maybe.withDefault 5 |> String.fromFloat |> SA.r
+        , Maybe.map3
+            (\h s l -> Color.hsl h s l)
+            (Array.get 3 painter)
+            (Array.get 4 painter)
+            (Array.get 5 painter)
+            |> Maybe.withDefault Color.black
+            |> Color.toCssString
+            |> SA.fill
         ]
         []
 
@@ -241,17 +241,16 @@ painterToSvg painter =
 
 painterGenerator : Random.Generator Painter
 painterGenerator =
-    Random.map5
-        (\px py dir step col -> Painter px py dir step col 1.0 initialGenome)
-        (Random.float 0.0 800.0)
-        (Random.float 0.0 600.0)
-        (Random.float 0.0 (degrees 360))
-        (Random.float 1.0 100.0)
-        (Random.map3
-            Color.rgb
-            (Random.float 0.0 1.0)
-            (Random.float 0.0 1.0)
-            (Random.float 0.0 1.0)
+    Random.map (\p -> Painter p initialGenome)
+        Random.map6
+        (\px py size hue sat light ->
+            Array.fromList [ px, py, size, hue, sat, light ]
+                (Random.float 0.0 800.0)
+                (Random.float 0.0 600.0)
+                (Random.float 0.0 100.0)
+                (Random.float 0.0 1.0)
+                (Random.float 0.0 1.0)
+                (Random.float 0.0 1.0)
         )
 
 
