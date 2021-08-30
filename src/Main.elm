@@ -1,5 +1,7 @@
 module Main exposing (main)
 
+import Adf exposing (Adf(..), executeAdf)
+import Array exposing (Array)
 import Browser
 import Browser.Events exposing (onAnimationFrameDelta)
 import Color exposing (Color)
@@ -11,6 +13,7 @@ import Random.Extra
 import Svg exposing (Svg, animate, g, svg)
 import Svg.Attributes as SA exposing (viewBox)
 import Svg.Lazy exposing (lazy)
+import Time
 
 
 main =
@@ -27,7 +30,14 @@ type alias Model =
 
 
 type alias Painter =
-    { px : Float, py : Float, dir : Float, step : Float, color : Color, life : Float, genome : Genome }
+    { px : Float
+    , dir : Float
+    , py : Float
+    , step : Float
+    , color : Color
+    , life : Float
+    , genome : Genome
+    }
 
 
 type Msg
@@ -35,35 +45,16 @@ type Msg
     | AnimationTick Float
     | ToggleRunning
     | MutProb Float
-
-
-type AGF
-    = Add AGF AGF
-    | Subtract AGF AGF
-    | Multiply AGF AGF
-    | Divide AGF AGF
-    | Sin AGF
-    | Cos AGF
-    | Atan2 AGF AGF
-    | Px
-    | Py
-    | Dir
-    | Step
-    | Hue
-    | Sat
-    | Light
-    | Life
-    | Delta
-    | Number Float
-
-
-type alias Genome =
-    { px : AGF, py : AGF, dir : AGF, step : AGF, hue : AGF, sat : AGF, light : AGF }
+    | Mate Time.Posix
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( Nothing, List.repeat 100 painterGenerator |> Random.Extra.sequence |> Random.generate SeedPainters )
+
+
+
+--- Subscriptions
 
 
 subscriptions model =
@@ -73,7 +64,10 @@ subscriptions model =
 
         Just m ->
             if m.running then
-                onAnimationFrameDelta AnimationTick
+                Sub.batch
+                    [ onAnimationFrameDelta AnimationTick
+                    , Time.every 1000 Mate
+                    ]
 
             else
                 Sub.none
@@ -89,7 +83,14 @@ update msg model =
         Nothing ->
             case msg of
                 SeedPainters painters ->
-                    ( Just { painters = painters, elements = [], running = True, mutationProbability = 0.1 }, Cmd.none )
+                    ( Just
+                        { painters = painters
+                        , elements = []
+                        , running = True
+                        , mutationProbability = 0.1
+                        }
+                    , Cmd.none
+                    )
 
                 _ ->
                     ( model, Cmd.none )
@@ -105,8 +106,11 @@ update msg model =
                 MutProb p ->
                     ( Just { m | mutationProbability = p }, Cmd.none )
 
-                _ ->
-                    ( Nothing, Cmd.none )
+                Mate _ ->
+                    ( model, Cmd.none )
+
+                SeedPainters _ ->
+                    ( model, Cmd.none )
 
 
 movePainters : Float -> Model -> Model
@@ -134,72 +138,34 @@ movePainter delta painter =
 
 executeGenome : Float -> Painter -> Painter
 executeGenome delta painter =
+    let
+        hsla =
+            Color.toHsla painter.color
+
+        params =
+            Array.fromList
+                [ delta
+                , painter.px
+                , painter.py
+                , painter.dir
+                , painter.step
+                , hsla.hue
+                , hsla.saturation
+                , hsla.lightness
+                , painter.life
+                ]
+    in
     { painter
-        | px = executeAGF delta painter painter.genome.px
-        , py = executeAGF delta painter painter.genome.py
-        , dir = executeAGF delta painter painter.genome.dir
-        , step = executeAGF delta painter painter.genome.step
+        | px = executeAdf params painter.genome.px |> Maybe.withDefault 0
+        , py = executeAdf params painter.genome.py |> Maybe.withDefault 0
+        , dir = executeAdf params painter.genome.dir |> Maybe.withDefault 0
+        , step = executeAdf params painter.genome.step |> Maybe.withDefault 0
         , color =
             Color.hsl
-                (executeAGF delta painter painter.genome.hue)
-                (executeAGF delta painter painter.genome.sat)
-                (executeAGF delta painter painter.genome.light)
+                (executeAdf params painter.genome.hue |> Maybe.withDefault 0)
+                (executeAdf params painter.genome.sat |> Maybe.withDefault 0)
+                (executeAdf params painter.genome.light |> Maybe.withDefault 0)
     }
-
-
-executeAGF : Float -> Painter -> AGF -> Float
-executeAGF delta painter agf =
-    case agf of
-        Add agf1 agf2 ->
-            executeAGF delta painter agf1 + executeAGF delta painter agf2
-
-        Subtract agf1 agf2 ->
-            executeAGF delta painter agf1 - executeAGF delta painter agf2
-
-        Multiply agf1 agf2 ->
-            executeAGF delta painter agf1 * executeAGF delta painter agf2
-
-        Divide agf1 agf2 ->
-            executeAGF delta painter agf1 / executeAGF delta painter agf2
-
-        Sin agf1 ->
-            sin (executeAGF delta painter agf1)
-
-        Cos agf1 ->
-            cos (executeAGF delta painter agf1)
-
-        Atan2 agf1 agf2 ->
-            atan2 (executeAGF delta painter agf1) (executeAGF delta painter agf2)
-
-        Px ->
-            painter.px
-
-        Py ->
-            painter.py
-
-        Dir ->
-            painter.dir
-
-        Step ->
-            painter.step
-
-        Hue ->
-            Color.toHsla painter.color |> .hue
-
-        Sat ->
-            Color.toHsla painter.color |> .saturation
-
-        Light ->
-            Color.toHsla painter.color |> .lightness
-
-        Life ->
-            painter.life
-
-        Delta ->
-            delta
-
-        Number n ->
-            n
 
 
 wrap : Float -> Float -> Float -> Float
@@ -289,13 +255,21 @@ painterGenerator =
         )
 
 
+
+--- Genome
+
+
+type alias Genome =
+    { px : Adf, py : Adf, dir : Adf, step : Adf, hue : Adf, sat : Adf, light : Adf }
+
+
 initialGenome : Genome
 initialGenome =
-    { px = Add Px (Multiply (Divide (Multiply Step Delta) (Number 1000.0)) (Cos Dir))
-    , py = Add Py (Multiply (Divide (Multiply Step Delta) (Number 1000.0)) (Sin Dir))
-    , dir = Dir
-    , step = Step
-    , hue = Hue
-    , sat = Sat
-    , light = Light
+    { px = Add (Param (Number 1)) (Multiply (Divide (Multiply (Param (Number 4)) (Param (Number 0))) (Number 1000.0)) (Cos (Param (Number 3))))
+    , py = Add (Param (Number 2)) (Multiply (Divide (Multiply (Param (Number 4)) (Param (Number 0))) (Number 1000.0)) (Sin (Param (Number 3))))
+    , dir = Param (Number 3)
+    , step = Param (Number 4)
+    , hue = Param (Number 5)
+    , sat = Param (Number 6)
+    , light = Param (Number 7)
     }
